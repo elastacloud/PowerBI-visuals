@@ -131,6 +131,9 @@
 /// <reference path="visuals/imageVisual.ts"/>
 /// <reference path="capabilities/imageVisual.capabilities.ts"/>
 
+/// <reference path="capabilities/elastacloud/infograph.capabilities.ts" />
+/// <reference path="visuals/elastacloud/infograph.ts"/>
+
 /// <reference path="capabilities/samples/consoleWriter.capabilities.ts"/>
 /// <reference path="visuals/samples/consoleWriter.ts"/>
 

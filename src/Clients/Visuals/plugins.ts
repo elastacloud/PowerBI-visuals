@@ -282,6 +282,12 @@ module powerbi.visuals.plugins {
         create: () => new samples.ConsoleWriter()
     };
 
+    export var infograph: IVisualPlugin = {
+        name: 'infograph',
+        capabilities: capabilities.infographCapabilities,
+        create: () => new InfoGraph()
+    };
+
     export var helloIVisual: IVisualPlugin = {
         name: 'helloIVisual',
         capabilities: samples.HelloIVisual.capabilities,
