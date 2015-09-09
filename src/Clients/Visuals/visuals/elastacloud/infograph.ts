@@ -51,7 +51,7 @@ module powerbi.visuals {
             //d3.select(options.element.get(0)).append("h1").text(this.data.title);
             this.svgContainer = d3.select(options.element.get(0))
                 .append("svg").attr("viewBox", "0 0 120 120")
-                .attr("preserveAspectRatio", "xMinYMin slice");
+                .attr("preserveAspectRatio", "none");
 
             this.setContainerSizeOptions();
         };
