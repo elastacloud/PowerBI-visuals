@@ -45,13 +45,11 @@ module powerbi.visuals {
         private viewPort: IViewport;
 
         public init = (options: VisualInitOptions) => {
-            //window.console.log(options);
             this.viewPort = options.viewport;
 
-            //d3.select(options.element.get(0)).append("h1").text(this.data.title);
             this.svgContainer = d3.select(options.element.get(0))
                 .append("svg").attr("viewBox", "0 0 120 120")
-                .attr("preserveAspectRatio", "none");
+                .attr("preserveAspectRatio", "xMinYMid slice");
 
             this.setContainerSizeOptions();
         };
@@ -65,9 +63,6 @@ module powerbi.visuals {
         public onResizing(options: any) { }
 
         public update(options: VisualUpdateOptions) {
-            window.console.log('update');
-            window.console.log(options);
-
             this.viewPort = options.viewport;
             this.setContainerSizeOptions();
             this.svgContainer.selectAll("*").remove();
@@ -81,9 +76,6 @@ module powerbi.visuals {
         }
 
         public onDataChanged(options: VisualDataChangedOptions) {
-            //window.console.log(options);
-            window.console.log(this.convert(options.dataViews[0]));
-
             var data = this.convert(options.dataViews[0]);
 
             this.resolution = new InfographicResolution(100, 100,
@@ -123,7 +115,6 @@ module powerbi.visuals {
         };
 
         private convert(data: DataView): IInfoGraphData {
-            window.console.log(this);
             var resolutionW = this.viewPort.width / 100;
             var resolutionH = this.viewPort.height / 100;    
 
@@ -136,8 +127,7 @@ module powerbi.visuals {
                 shouldOverlayLabels: true,
                 title: "Comparing 1 Apple to 3 Oranges"
             };
-
-            console.log(dataModel.resolution);
+            
             return dataModel;
         };
     };
@@ -160,7 +150,8 @@ module powerbi.visuals {
             return this.viewPortHeight / this.height;
         }
         public getBoundary(factor: number) {
-            return (this.width * this.height) * factor;
+            var boundary = (this.width * this.height) * factor;
+            return boundary;
         }
         public getMap(): ICoordinate[][] {
             var ret = [];

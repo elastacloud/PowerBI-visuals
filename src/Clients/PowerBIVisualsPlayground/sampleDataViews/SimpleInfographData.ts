@@ -34,7 +34,7 @@ module powerbi.visuals.sampleDataViews {
         public name: string = "SimpeInfographData";
         public displayName: string = "Infograph data";
 
-        private dataValues: number[] = [90, 30];
+        private dataValues: number[] = [75, 25];
 
         public visuals: string[] = ['infograph',
         ];
@@ -112,8 +112,10 @@ module powerbi.visuals.sampleDataViews {
         }
 
         public randomize(): void {
+            var randomPercentile = Math.random() * 100;
+
             this.dataValues = [
-                Math.random() * 100, Math.random() * 100,
+                randomPercentile, 100 - randomPercentile
             ];
         }
 
