@@ -124,7 +124,7 @@ module powerbi.visuals {
                 values: data.categorical.values[0].values,
                 resolution: [ resolutionW, resolutionH],
                 viewPort: [ this.viewPort.width, this.viewPort.height],
-                shouldOverlayLabels: true,
+                shouldOverlayLabels: false,
                 title: "Comparing 1 Apple to 3 Oranges"
             };
             
