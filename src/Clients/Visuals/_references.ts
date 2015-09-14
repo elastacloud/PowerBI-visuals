@@ -104,6 +104,9 @@
 /// <reference path="visuals/basicShape.ts"/>
 /// <reference path="capabilities/basicShape.capabilities.ts"/>
 
+/// <reference path="visuals/calendar.ts" />
+/// <reference path="capabilities/calendar.capabilities.ts" />
+
 /// <reference path="cartesian/cartesianChart.ts"/>
 
 /// <reference path="capabilities/columnChart.capabilities.ts"/>

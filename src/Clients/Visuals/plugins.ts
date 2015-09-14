@@ -59,6 +59,12 @@ module powerbi.visuals.plugins {
         create: () => new BasicShapeVisual()
     };
 
+    export var calendar: IVisualPlugin = {
+        name: 'calendar',
+        capabilities: calendarCapabilities,
+        create: () => new CalendarVisual()
+    };
+
     export var card: IVisualPlugin = {
         name: 'card',
         watermarkKey: 'card',
