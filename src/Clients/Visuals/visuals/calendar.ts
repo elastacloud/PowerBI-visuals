@@ -36,40 +36,48 @@ declare module D3 {
 
 module powerbi.visuals {
     export class CalendarVisual implements IVisual {
+        private width = 960;
+        private height = 136;
+        private cellSize = 17; // cell size
+        private element: HTMLElement;
         public init(options: VisualInitOptions) {
-            var width = 960,
-                height = 136,
-                cellSize = 17; // cell size
+            this.element = options.element.get(0);
+            this.draw(this.element, options.viewport.width, options.viewport.height);
+        }
+        
+        private draw(element, itemWidth: number, itemHeight: number)
+        {
+            var quantizeColor =
+                d3.scale.quantize()
+                    .domain([-.05, .05])
+                    .range(d3.range(11).map(function (d) { return "q" + d + "-11"; }));
 
             var percent = d3.format(".1%"),
                 format = d3.time.format("%Y-%m-%d");
-
-            var color = d3.scale.quantize()
-                .domain([-.05, .05])
-                .range(d3.range(11).map(function (d) { return "q" + d + "-11"; }));
-
-            var svg = d3.select(options.element[0])
+            
+            var svg = d3.select(element).selectAll("svg")
                 .data(d3.range(1990, 2011))
                 .enter().append("svg")
-                .attr("width", width)
-                .attr("height", height)
+                .attr("width", itemWidth)
+                .attr("height", this.height)
+                .attr("viewBox", "0 0 " + this.width + " " + this.height)
                 .attr("class", "RdYlGn")
                 .append("g")
-                .attr("transform", "translate(" + ((width - cellSize * 53) / 2) + "," + (height - cellSize * 7 - 1) + ")");
+                .attr("transform", "translate(" + ((this.width - this.cellSize * 53) / 2) + "," + (this.height - this.cellSize * 7 - 1) + ")");
 
             svg.append("text")
-                .attr("transform", "translate(-6," + cellSize * 3.5 + ")rotate(-90)")
+                .attr("transform", "translate(-6," + this.cellSize * 3.5 + ")rotate(-90)")
                 .style("text-anchor", "middle")
                 .text(function (d) { return d; });
 
             var rect = svg.selectAll(".day")
-                .data(function (d) { return d3.time.days(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
+                .data(this.getDaysOfYear)
                 .enter().append("rect")
                 .attr("class", "day")
-                .attr("width", cellSize)
-                .attr("height", cellSize)
-                .attr("x", function (d) { return d3.time.weekOfYear(d) * cellSize; })
-                .attr("y", function (d) { return d.getDay() * cellSize; })
+                .attr("width", this.cellSize)
+                .attr("height", this.cellSize)
+                .attr("x", this.getXPosition)
+                .attr("y", this.getYPosition)
                 .datum(format);
 
             rect.append("title")
@@ -79,7 +87,7 @@ module powerbi.visuals {
                 .data(function (d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
                 .enter().append("path")
                 .attr("class", "month")
-                .attr("d", monthPath);
+                .attr("d", this.monthPath);
 
             d3.csv("dji.csv", function (error, csv) {
                 if (error) throw error;
@@ -90,31 +98,38 @@ module powerbi.visuals {
                     .map(csv);
 
                 rect.filter(function (d) { return d in data; })
-                    .attr("class", function (d) { return "day " + color(data[d]); })
+                    .attr("class", function (d) { return "day " + quantizeColor(data[d]); })
                     .select("title")
                     .text(function (d) { return d + ": " + percent(data[d]); });
             });
 
-            function monthPath(t0) {
-                var t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0),
-                    d0 = t0.getDay(), w0 = d3.time.weekOfYear(t0),
-                    d1 = t1.getDay(), w1 = d3.time.weekOfYear(t1);
-                return "M" + (w0 + 1) * cellSize + "," + d0 * cellSize
-                    + "H" + w0 * cellSize + "V" + 7 * cellSize
-                    + "H" + w1 * cellSize + "V" + (d1 + 1) * cellSize
-                    + "H" + (w1 + 1) * cellSize + "V" + 0
-                    + "H" + (w0 + 1) * cellSize + "Z";
-            }
-
             d3.select(self.frameElement).style("height", "2910px");
         }
-        
+
+        public update(options: VisualUpdateOptions) {
+            d3.select(this.element).selectAll("*").remove();
+            this.draw(this.element, options.viewport.width, options.viewport.height);
+        }
 
         public onDataChanged(options: VisualDataChangedOptions): void {
-           
         }
 
         public onResizing(viewport: IViewport): void {
-        }
+        };
+
+        private getDaysOfYear = (year: number) => { return d3.time.days(new Date(year, 0, 1), new Date(year + 1, 0, 1)); };
+        private getXPosition = (date: Date) => { return d3.time.weekOfYear(date) * this.cellSize; };
+        private getYPosition = (date: Date) => { return date.getDay() * this.cellSize; };
+        private monthPath = (t0) => {
+            console.log(t0.getFullYear());
+            var t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0),
+                d0 = t0.getDay(), w0 = d3.time.weekOfYear(t0),
+                d1 = t1.getDay(), w1 = d3.time.weekOfYear(t1);
+            return "M" + (w0 + 1) * this.cellSize + "," + d0 * this.cellSize
+                + "H" + w0 * this.cellSize + "V" + 7 * this.cellSize
+                + "H" + w1 * this.cellSize + "V" + (d1 + 1) * this.cellSize
+                + "H" + (w1 + 1) * this.cellSize + "V" + 0
+                + "H" + (w0 + 1) * this.cellSize + "Z";
+        };
     }
 } 
