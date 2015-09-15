@@ -58,6 +58,19 @@ module powerbi.visuals {
         public init(options: VisualInitOptions) {
             this.element = options.element.get(0);
         }
+
+        public update(options: VisualUpdateOptions) {
+            d3.select(this.element).selectAll("*").remove();
+            var viewModel = this.convert(options.dataViews[0]);
+            this.draw(this.element, options.viewport.width, options.viewport.height, this.getYears(viewModel));
+            this.apply(viewModel);
+        }
+
+        public onDataChanged(options: VisualDataChangedOptions): void {
+        }
+
+        public onResizing(viewport: IViewport): void {
+        };
         
         private draw(element, itemWidth: number, itemHeight: number, range: number[])
         {
@@ -87,6 +100,7 @@ module powerbi.visuals {
                 .enter().append("rect")
                 .attr("width", this.cellSize)
                 .attr("height", this.cellSize)
+                .attr("class", "day")
                 .attr("x", this.getXPosition)
                 .attr("y", this.getYPosition)
                 .datum(format);
@@ -108,7 +122,7 @@ module powerbi.visuals {
             var quantizeColor =
                 d3.scale.quantize()
                     .domain([0, 100])
-                    .range(d3.range(255).map(function (d) { return "#00" + d.toString(16) + "00"; }));
+                    .range(d3.range(256).map(function (d) { return "#00" + d.toString(16) + "00"; }));
 
             var pad = (n: number) => {
                 if (n.toString().length === 1) {
@@ -126,21 +140,8 @@ module powerbi.visuals {
             this.rect.filter(function (d) { return d in data; })
                 .attr("style", function (d) { return "fill:" + quantizeColor(data[d]); })
                 .select("title")
-                .text(function (d) { return d + ": " + d3.format(".1%")(data[d]); });
+                .text(function (d) { return d + ": " + d3.format(".1%")(data[d]/100); });
         }
-
-        public update(options: VisualUpdateOptions) {
-            d3.select(this.element).selectAll("*").remove();
-            var viewModel = this.convert(options.dataViews[0]);
-            this.draw(this.element, options.viewport.width, options.viewport.height, this.getYears(viewModel));
-            this.apply(viewModel);
-        }
-
-        public onDataChanged(options: VisualDataChangedOptions): void {
-        }
-
-        public onResizing(viewport: IViewport): void {
-        };
 
         private convert(dataView: DataView): CalendarViewModel {
             return <CalendarViewModel> {
@@ -149,12 +150,13 @@ module powerbi.visuals {
                     <DateValue> { date: new Date(1990, 1, 3), value: 9 },
                     <DateValue> { date: new Date(1990, 1, 4), value: 60 },
                     <DateValue> { date: new Date(1990, 1, 5), value: 35 },
-                    <DateValue> { date: new Date(1990, 1, 6), value: 20 },
+                    <DateValue> { date: new Date(1973, 1, 6), value: 150 },
                     <DateValue> { date: new Date(1990, 1, 7), value: 19 },
                     <DateValue> { date: new Date(1990, 1, 9), value: 60 },
                     <DateValue> { date: new Date(1990, 1, 10), value: 75 },
                     <DateValue> { date: new Date(1990, 1, 11), value: 99 },
-                    <DateValue> { date: new Date(1990, 1, 12), value: 19 }]
+                    <DateValue> { date: new Date(1990, 1, 12), value: 19 },
+                    <DateValue> { date: new Date(1973, 2, 19), value: 17 }]
             };
         };
         private getYears(viewModel: CalendarViewModel) {
@@ -167,7 +169,7 @@ module powerbi.visuals {
                 a.push(allYears[i]);
                 uniqueYears[allYears[i].toString()] = 1;
             }
-            return a;
+            return a.sort();
         };
         private getDaysOfYear = (year: number) => { return d3.time.days(new Date(year, 0, 1), new Date(year + 1, 0, 1)); };
         private getXPosition = (date: Date) => { return d3.time.weekOfYear(date) * this.cellSize; };
