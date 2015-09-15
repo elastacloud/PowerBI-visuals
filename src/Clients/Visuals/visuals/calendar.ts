@@ -22,6 +22,10 @@
  *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  *  THE SOFTWARE.
+ *
+ *  Layout inspired by Rick Wicklin and Robert Allison http://stat-computing.org/dataexpo/2009/posters/
+ *  Original code by mbostock http://bl.ocks.org/mbostock/4063318
+ *  Modified and integrated with love by Andy.
  */
 
 /// <reference path="../_references.ts"/>
@@ -35,80 +39,101 @@ declare module D3 {
 }
 
 module powerbi.visuals {
+    export interface DateValue {
+        date: Date;
+        value: number;
+    };
+    export interface CalendarViewModel {
+        values: DateValue[];
+    };
+
     export class CalendarVisual implements IVisual {
-        private width = 960;
-        private height = 136;
-        private cellSize = 17; // cell size
+        private drawMonthPath = false;
+        private width = 1016;
+        private height = 144;
+        private cellSize = 18; // cell size
         private element: HTMLElement;
+        private rect: D3.Selection;
+
         public init(options: VisualInitOptions) {
             this.element = options.element.get(0);
-            this.draw(this.element, options.viewport.width, options.viewport.height);
         }
         
-        private draw(element, itemWidth: number, itemHeight: number)
+        private draw(element, itemWidth: number, itemHeight: number, range: number[])
         {
-            var quantizeColor =
-                d3.scale.quantize()
-                    .domain([-.05, .05])
-                    .range(d3.range(11).map(function (d) { return "q" + d + "-11"; }));
-
-            var percent = d3.format(".1%"),
-                format = d3.time.format("%Y-%m-%d");
+            var format = d3.time.format("%Y-%m-%d");
             
             var svg = d3.select(element).selectAll("svg")
-                .data(d3.range(1990, 2011))
+                .data(range)
                 .enter().append("svg")
                 .attr("width", itemWidth)
                 .attr("height", this.height)
                 .attr("viewBox", "0 0 " + this.width + " " + this.height)
-                .attr("class", "RdYlGn")
                 .append("g")
-                .attr("transform", "translate(" + ((this.width - this.cellSize * 53) / 2) + "," + (this.height - this.cellSize * 7 - 1) + ")");
+                .attr("transform", "translate(" + ((this.width - this.cellSize * 54) / 2) + "," + (this.height - this.cellSize * 7 - 1) + ")");
 
             svg.append("text")
                 .attr("transform", "translate(-6," + this.cellSize * 3.5 + ")rotate(-90)")
                 .style("text-anchor", "middle")
                 .text(function (d) { return d; });
 
-            var rect = svg.selectAll(".day")
+            svg.append("text")
+                .attr("transform", "translate("+ (this.width - (3*this.cellSize)) + "," + this.cellSize * 3.5 + ")rotate(90)")
+                .style("text-anchor", "middle")
+                .text(function (d) { return d; });
+
+            this.rect = svg.selectAll(".day")
                 .data(this.getDaysOfYear)
                 .enter().append("rect")
-                .attr("class", "day")
                 .attr("width", this.cellSize)
                 .attr("height", this.cellSize)
                 .attr("x", this.getXPosition)
                 .attr("y", this.getYPosition)
                 .datum(format);
 
-            rect.append("title")
+            this.rect.append("title")
                 .text(function (d) { return d; });
 
-            svg.selectAll(".month")
-                .data(function (d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
-                .enter().append("path")
-                .attr("class", "month")
-                .attr("d", this.monthPath);
+            if (this.drawMonthPath) {
+                svg.selectAll(".month")
+                    .data(function (d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
+                    .enter().append("path")
+                    .attr("class", "month")
+                    .attr("d", this.monthPath);
+            }
+        }
 
-            d3.csv("dji.csv", function (error, csv) {
-                if (error) throw error;
+        private apply(viewModel: CalendarViewModel)
+        {            
+            var quantizeColor =
+                d3.scale.quantize()
+                    .domain([0, 100])
+                    .range(d3.range(255).map(function (d) { return "#00" + d.toString(16) + "00"; }));
 
-                var data = d3.nest()
-                    .key(function (d) { return d.Date; })
-                    .rollup(function (d) { return (d[0].Close - d[0].Open) / d[0].Open; })
-                    .map(csv);
+            var pad = (n: number) => {
+                if (n.toString().length === 1) {
+                    return "0" + n;
+                }
 
-                rect.filter(function (d) { return d in data; })
-                    .attr("class", function (d) { return "day " + quantizeColor(data[d]); })
-                    .select("title")
-                    .text(function (d) { return d + ": " + percent(data[d]); });
-            });
+                return n.toString();
+            };
+            
+            var data = d3.nest()
+                .key(function (d: DateValue) { return d.date.getFullYear() + "-" + pad(d.date.getMonth()) + "-" + pad(d.date.getDate()); })
+                .rollup(function (d: DateValue[]) { return d.map((dateValue) => { return dateValue.value; }).reduce((prev, curr) => prev + curr);  })
+                .map(viewModel.values);
 
-            d3.select(self.frameElement).style("height", "2910px");
+            this.rect.filter(function (d) { return d in data; })
+                .attr("style", function (d) { return "fill:" + quantizeColor(data[d]); })
+                .select("title")
+                .text(function (d) { return d + ": " + d3.format(".1%")(data[d]); });
         }
 
         public update(options: VisualUpdateOptions) {
             d3.select(this.element).selectAll("*").remove();
-            this.draw(this.element, options.viewport.width, options.viewport.height);
+            var viewModel = this.convert(options.dataViews[0]);
+            this.draw(this.element, options.viewport.width, options.viewport.height, this.getYears(viewModel));
+            this.apply(viewModel);
         }
 
         public onDataChanged(options: VisualDataChangedOptions): void {
@@ -117,19 +142,39 @@ module powerbi.visuals {
         public onResizing(viewport: IViewport): void {
         };
 
+        private convert(dataView: DataView): CalendarViewModel {
+            return <CalendarViewModel> {
+                values: [<DateValue> { date: new Date(1990, 1, 1), value: 20 },
+                    <DateValue> { date: new Date(1990, 1, 2), value: 15 },
+                    <DateValue> { date: new Date(1990, 1, 3), value: 9 },
+                    <DateValue> { date: new Date(1990, 1, 4), value: 60 },
+                    <DateValue> { date: new Date(1990, 1, 5), value: 35 },
+                    <DateValue> { date: new Date(1990, 1, 6), value: 20 },
+                    <DateValue> { date: new Date(1990, 1, 7), value: 19 },
+                    <DateValue> { date: new Date(1990, 1, 9), value: 60 },
+                    <DateValue> { date: new Date(1990, 1, 10), value: 75 },
+                    <DateValue> { date: new Date(1990, 1, 11), value: 99 },
+                    <DateValue> { date: new Date(1990, 1, 12), value: 19 }]
+            };
+        };
+        private getYears(viewModel: CalendarViewModel) {
+            var allYears = viewModel.values.map((value) => { return value.date.getFullYear(); });
+            var uniqueYears = {}, a = [];
+            for (var i = 0, l = allYears.length; i < l; ++i) {
+                if (uniqueYears.hasOwnProperty(allYears[i].toString())) {
+                    continue;
+                }
+                a.push(allYears[i]);
+                uniqueYears[allYears[i].toString()] = 1;
+            }
+            return a;
+        };
         private getDaysOfYear = (year: number) => { return d3.time.days(new Date(year, 0, 1), new Date(year + 1, 0, 1)); };
         private getXPosition = (date: Date) => { return d3.time.weekOfYear(date) * this.cellSize; };
         private getYPosition = (date: Date) => { return date.getDay() * this.cellSize; };
         private monthPath = (t0) => {
-            console.log(t0.getFullYear());
-            var t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0),
-                d0 = t0.getDay(), w0 = d3.time.weekOfYear(t0),
-                d1 = t1.getDay(), w1 = d3.time.weekOfYear(t1);
-            return "M" + (w0 + 1) * this.cellSize + "," + d0 * this.cellSize
-                + "H" + w0 * this.cellSize + "V" + 7 * this.cellSize
-                + "H" + w1 * this.cellSize + "V" + (d1 + 1) * this.cellSize
-                + "H" + (w1 + 1) * this.cellSize + "V" + 0
-                + "H" + (w0 + 1) * this.cellSize + "Z";
+            var t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0), d0 = t0.getDay(), w0 = d3.time.weekOfYear(t0), d1 = t1.getDay(), w1 = d3.time.weekOfYear(t1);
+            return "M" + (w0 + 1) * this.cellSize + "," + d0 * this.cellSize + "H" + w0 * this.cellSize + "V" + 7 * this.cellSize + "H" + w1 * this.cellSize + "V" + (d1 + 1) * this.cellSize + "H" + (w1 + 1) * this.cellSize + "V" + 0 + "H" + (w0 + 1) * this.cellSize + "Z";
         };
     }
 } 
