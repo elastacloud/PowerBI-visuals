@@ -48,7 +48,7 @@ module powerbi.visuals {
     };
 
     export class CalendarVisual implements IVisual {
-        private drawMonthPath = false;
+        private drawMonthPath = true;
         private width = 1016;
         private height = 144;
         private cellSize = 18; // cell size
@@ -113,7 +113,8 @@ module powerbi.visuals {
                     .data(function (d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
                     .enter().append("path")
                     .attr("class", "month")
-                    .attr("d", this.monthPath);
+                    .attr("d", this.monthPath)
+                    .attr("stroke", "#aaaaaa");
             }
         }
 
