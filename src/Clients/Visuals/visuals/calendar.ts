@@ -80,7 +80,7 @@ module powerbi.visuals {
                 .data(range)
                 .enter().append("svg")
                 .attr("width", itemWidth)
-                .attr("height", this.height)
+                .attr("height", itemWidth / 7)
                 .attr("viewBox", "0 0 " + this.width + " " + this.height)
                 .append("g")
                 .attr("transform", "translate(" + ((this.width - this.cellSize * 54) / 2) + "," + (this.height - this.cellSize * 7 - 1) + ")");
