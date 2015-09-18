@@ -27,21 +27,27 @@
 /// <reference path="../_references.ts"/>
 
 module powerbitests {
-    import ColorConvertor = powerbitests.utils.ColorUtility.convertFromRGBorHexToHex;
-    import BasicShapeVisual = powerbi.visuals.BasicShapeVisual;
-    describe("basicShape Tests", () => {
+    import aCalendarVisual = powerbi.visuals.CalendarVisual;
+    import aCalendarViewModel = powerbi.visuals.CalendarViewModel;
+    import DateValue = powerbi.visuals.DateValue;
 
-        it('basicShape registered capabilities', () => {
-            var json1 = powerbi.visuals.visualPluginFactory.create().getPlugin('basicShape').capabilities;
-            var json2 = powerbi.visuals.basicShapeCapabilities;
-            expect(json1.toString()).toBe(json2.toString());
-        });
+    var testData = <aCalendarViewModel> {
+        values: [<DateValue> { date: new Date(1990, 1, 1), value: 20 },
+            <DateValue> { date: new Date(1990, 1, 2), value: 15 },
+            <DateValue> { date: new Date(1990, 1, 3), value: 9 },
+            <DateValue> { date: new Date(1990, 1, 4), value: 60 },
+            <DateValue> { date: new Date(1990, 1, 5), value: 35 },
+            <DateValue> { date: new Date(1973, 1, 6), value: 150 },
+            <DateValue> { date: new Date(1990, 1, 7), value: 19 },
+            <DateValue> { date: new Date(1990, 1, 9), value: 60 },
+            <DateValue> { date: new Date(1990, 1, 10), value: 75 },
+            <DateValue> { date: new Date(1990, 1, 11), value: 99 },
+            <DateValue> { date: new Date(1990, 1, 12), value: 19 },
+            <DateValue> { date: new Date(1973, 2, 19), value: 17 }]
+    };
 
-        it('basicShape registered capabilities: objects', () => {
-            expect(powerbi.visuals.visualPluginFactory.create().getPlugin('basicShape').capabilities.objects).toBeDefined();
-        });
-
-        it('basicShape no visual configuration', () => {
+    describe("calendarVisual", () => {
+        it('does not draw on init', () => {
             var element = powerbitests.helpers.testDom('200', '300');
             var options: powerbi.VisualInitOptions = {
                 element: element,
@@ -56,52 +62,24 @@ module powerbitests {
                 }
             };
 
-            var basicShape = new BasicShapeVisual();
-            basicShape.init(options);
+            var calendar = new aCalendarVisual();
+            calendar.init(options);
 
             expect(element.children().length).toBe(0);
         });
 
-        it('Basic Shape DOM verification', () => {
-            var element = powerbitests.helpers.testDom('200', '300');
-            var options: powerbi.VisualInitOptions = {
-                element: $(element[0]),
-                host: mocks.createVisualHostServices(),
-                style: powerbi.visuals.visualStyles.create(),
-                viewport: {
-                    height: element.height(),
-                    width: element.width()
-                },
-                animation: {
-                    transitionImmediate: true
-                },
-            };
+        it('calculates years to visualize', () => {
+            var calendar = new aCalendarVisual();
+            var actual = calendar.getYears(testData);
 
-            var basicShape = new BasicShapeVisual();
-            basicShape.init(options);
-            var visualDataChangedOption: powerbi.VisualDataChangedOptions = {
-                dataViews: [{
-                    metadata: {
-                        columns: [],
-                        objects: {
-                            general: { shapeType: 'rectangle' },
-                            line: { lineColor: { solid: { color: '#00b8ad' } }, transparency: 75, weight: 15 },
-                            fill: { transparency: 65, fillColor: { solid: { color: '#e6e6e4' } } },
-                        }
-                    }
-                }]
-            };
-            basicShape.onDataChanged(visualDataChangedOption);
-            var rect = element.find('rect');
+            expect(actual).toBe([1973, 1990]);
+        });
 
-            //Verifying the DOM
-            var stroke = rect.css('stroke');
-            expect(ColorConvertor(stroke)).toBe(ColorConvertor("#00b8ad"));//lineColor
-            expect(rect.css('stroke-opacity')).toBe("0.75"); //lineTransparency
-            expect(rect.css('stroke-width')).toBe("15px"); //weight
-            var fill = rect.css('fill');
-            expect(ColorConvertor(fill)).toBe(ColorConvertor("#e6e6e4"));  //fillColor
-            expect(rect.css('fill-opacity')).toBeCloseTo("0.65", 1); // fill transparency
+        it('calculates y Position', () => {
+            var calendar = new aCalendarVisual(1);
+            var actual = calendar.getYPosition(new Date(2015, 09, 18));
+            var expected = 5;
+            expect(actual).toBe(expected);
         });
     });
 }

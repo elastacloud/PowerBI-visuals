@@ -56,6 +56,13 @@ module powerbi.visuals {
         private element: HTMLElement;
         private rect: D3.Selection;
 
+        constructor(cellSizeOpt?: number)
+        {
+            if (cellSizeOpt) {
+                this.cellSize = cellSizeOpt;
+            }
+        }
+
         public init(options: VisualInitOptions) {
             this.element = options.element.get(0);
         }
@@ -102,6 +109,7 @@ module powerbi.visuals {
                 .attr("width", this.cellSize)
                 .attr("height", this.cellSize)
                 .attr("class", "day")
+                .attr("style", "fill: #eeeeee; stroke-width: 2px; stroke: #ffffff")
                 .attr("x", this.getXPosition)
                 .attr("y", this.getYPosition)
                 .datum(format);
@@ -115,7 +123,7 @@ module powerbi.visuals {
                     .enter().append("path")
                     .attr("class", "month")
                     .attr("d", this.monthPath)
-                    .attr("stroke", "#aaaaaa");
+                    .attr("stroke", "#cccccc");
             }
         }
 
@@ -174,8 +182,8 @@ module powerbi.visuals {
             return a.sort();
         };
         private getDaysOfYear = (year: number) => { return d3.time.days(new Date(year, 0, 1), new Date(year + 1, 0, 1)); };
-        private getXPosition = (date: Date) => { return d3.time.weekOfYear(date) * this.cellSize; };
-        private getYPosition = (date: Date) => { return date.getDay() * this.cellSize; };
+        public getXPosition = (date: Date) => { return d3.time.weekOfYear(date) * this.cellSize; };
+        public getYPosition = (date: Date) => { return date.getDay() * this.cellSize; };
         private monthPath = (t0) => {
             var t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0), d0 = t0.getDay(), w0 = d3.time.weekOfYear(t0), d1 = t1.getDay(), w1 = d3.time.weekOfYear(t1);
             return "M" + (w0 + 1) * this.cellSize + "," + d0 * this.cellSize + "H" + w0 * this.cellSize + "V" + 7 * this.cellSize + "H" + w1 * this.cellSize + "V" + (d1 + 1) * this.cellSize + "H" + (w1 + 1) * this.cellSize + "V" + 0 + "H" + (w0 + 1) * this.cellSize + "Z";
