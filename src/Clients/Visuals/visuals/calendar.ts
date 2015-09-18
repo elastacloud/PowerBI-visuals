@@ -1,7 +1,7 @@
 ﻿/*
  *  Power BI Visualizations
  *
- *  Copyright (c) Microsoft Corporation
+ *  Copyright (c) Elastcloud Ltd
  *  All rights reserved. 
  *  MIT License
  *
@@ -23,6 +23,7 @@
  *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  *  THE SOFTWARE.
  *
+ *  Acknowledgements
  *  Layout inspired by Rick Wicklin and Robert Allison http://stat-computing.org/dataexpo/2009/posters/
  *  Original code by mbostock http://bl.ocks.org/mbostock/4063318
  *  Modified and integrated with love by Andy.
@@ -160,7 +161,7 @@ module powerbi.visuals {
                     <DateValue> { date: new Date(1973, 2, 19), value: 17 }]
             };
         };
-        private getYears(viewModel: CalendarViewModel) {
+        public getYears(viewModel: CalendarViewModel) {
             var allYears = viewModel.values.map((value) => { return value.date.getFullYear(); });
             var uniqueYears = {}, a = [];
             for (var i = 0, l = allYears.length; i < l; ++i) {
