@@ -50,6 +50,8 @@ module powerbi.visuals {
 
     export class CalendarVisual implements IVisual {
         private drawMonthPath = true;
+        private drawLegend = true;
+        private drawLabels = true;
         private width = 1016;
         private height = 144;
         private cellSize = 18; // cell size
@@ -70,8 +72,14 @@ module powerbi.visuals {
         public update(options: VisualUpdateOptions) {
             d3.select(this.element).selectAll("*").remove();
             var viewModel = this.convert(options.dataViews[0]);
-            this.draw(this.element, options.viewport.width, options.viewport.height, this.getYears(viewModel));
-            this.apply(viewModel);
+
+            var maxDomain = Math.max.apply(Math,
+                viewModel.values.map((v) => {
+                    return v.value;
+                })
+            );
+            this.draw(this.element, options.viewport.width, options.viewport.height, this.getYears(viewModel), maxDomain);
+            this.apply(viewModel, maxDomain);
         }
 
         public onDataChanged(options: VisualDataChangedOptions): void {
@@ -80,7 +88,7 @@ module powerbi.visuals {
         public onResizing(viewport: IViewport): void {
         };
         
-        private draw(element, itemWidth: number, itemHeight: number, range: number[])
+        private draw(element, itemWidth: number, itemHeight: number, range: number[], maxDomain: number)
         {
             var format = d3.time.format("%Y-%m-%d");
             
@@ -91,17 +99,48 @@ module powerbi.visuals {
                 .attr("height", itemWidth / 7)
                 .attr("viewBox", "0 0 " + this.width + " " + this.height)
                 .append("g")
-                .attr("transform", "translate(" + ((this.width - this.cellSize * 54) / 2) + "," + (this.height - this.cellSize * 7 - 1) + ")");
+                .attr("transform", "translate(" + ((this.width - this.cellSize * 52) / 2) + "," + (this.height - this.cellSize * 7 - 1) + ")");
 
-            svg.append("text")
-                .attr("transform", "translate(-6," + this.cellSize * 3.5 + ")rotate(-90)")
-                .style("text-anchor", "middle")
-                .text(function (d) { return d; });
+            if (this.drawLabels) {
+                var textGroup = svg.append("g").attr("fill", "#cccccc");
+                textGroup.append("text")
+                    .attr("transform", "translate(" + this.cellSize * -1.5 + "," + this.cellSize * 3.5 + ")rotate(-90)")
+                    .style("text-anchor", "middle")
+                    .text(function (d) { return d; });
 
-            svg.append("text")
-                .attr("transform", "translate("+ (this.width - (3*this.cellSize)) + "," + this.cellSize * 3.5 + ")rotate(90)")
-                .style("text-anchor", "middle")
-                .text(function (d) { return d; });
+                textGroup.append("text")
+                    .style("text-anchor", "middle")
+                    .text("M")
+                    .attr("transform", "translate(" + this.cellSize * -0.75 + ")")
+                    .attr("x", 0)
+                    .attr("y", 2 * this.cellSize);
+
+                textGroup.append("text")
+                    .style("text-anchor", "middle")
+                    .text("W")
+                    .attr("transform", "translate(" + this.cellSize * -0.75 + ")")
+                    .attr("x", 0)
+                    .attr("y", 4 * this.cellSize);
+
+                textGroup.append("text")
+                    .style("text-anchor", "middle")
+                    .text("F")
+                    .attr("transform", "translate(" + this.cellSize * -0.75 + ")")
+                    .attr("x", 0)
+                    .attr("y", 6 * this.cellSize);
+
+                textGroup.append("text")
+                    .attr("transform", "translate(" + (this.width - (3 * this.cellSize)) + "," + this.cellSize * 3.5 + ")rotate(90)")
+                    .style("text-anchor", "middle")
+                    .text(function (d) { return d; });
+
+                textGroup.selectAll(".month")
+                    .data((d) => { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
+                    .enter()
+                    .append("text")
+                    .attr("transform", (d) => { return "translate(" + d3.time.weekOfYear(d) * this.cellSize + ", -5)"; })
+                    .text((d) => { return d3.time.format("%b")(d); });
+            }
 
             this.rect = svg.selectAll(".day")
                 .data(this.getDaysOfYear)
@@ -125,22 +164,51 @@ module powerbi.visuals {
                     .attr("d", this.monthPath)
                     .attr("stroke", "#cccccc");
             }
+
+            if (this.drawLegend) {
+                var legendGroup = d3.select(this.element).insert("svg", ":first-child")
+                    .attr("width", itemWidth)
+                    .attr("height", itemWidth / 17.5)
+                    .attr("viewBox", "0 0 " + this.width + " " + this.height / 7)
+                    .attr("preserveAspectRatio", "xMinYMin")
+                    .append("g");
+
+                legendGroup.append("rect")
+                    .attr("width", this.cellSize)
+                    .attr("height", this.cellSize)
+                    .attr("x", 0).attr("y", 0)
+                    .attr("fill", "#000000");
+
+                legendGroup.append("rect")
+                    .attr("width", this.cellSize)
+                    .attr("height", this.cellSize)
+                    .attr("x", 0).attr("y", this.cellSize * 1.5)
+                    .attr("fill", "#00ff00");
+
+                legendGroup
+                    .append("text").text(0)
+                    .attr("x", this.cellSize * 2).attr("y", this.cellSize);
+                legendGroup
+                    .append("text").text(d3.format(".4r")(maxDomain))
+                    .attr("x", this.cellSize * 2).attr("y", this.cellSize * 2.5);
+            }
         }
 
-        private apply(viewModel: CalendarViewModel)
+        private apply(viewModel: CalendarViewModel, maxDomain: number)
         {            
-            var quantizeColor =
-                d3.scale.quantize()
-                    .domain([0, 100])
-                    .range(d3.range(256).map(function (d) { return "#00" + d.toString(16) + "00"; }));
-
-            var pad = (n: number) => {
+            var pad = (n: any) => {
                 if (n.toString().length === 1) {
                     return "0" + n;
                 }
 
                 return n.toString();
             };
+
+            var quantizeColor =
+                d3.scale.quantize()
+                    .domain([0, maxDomain])
+                    .range(d3.range(256).map(function (d) { return "#00" + pad(d.toString(16)) + "00"; }));
+
             
             var data = d3.nest()
                 .key(function (d: DateValue) { return d.date.getFullYear() + "-" + pad(d.date.getMonth()) + "-" + pad(d.date.getDate()); })
@@ -150,23 +218,21 @@ module powerbi.visuals {
             this.rect.filter(function (d) { return d in data; })
                 .attr("style", function (d) { return "fill:" + quantizeColor(data[d]); })
                 .select("title")
-                .text(function (d) { return d + ": " + d3.format(".1%")(data[d]/100); });
+                .text(function (d) { return d + ": " + d3.format(".6f")(data[d]); });
         }
 
         private convert(dataView: DataView): CalendarViewModel {
+            var returnSet = dataView.categorical.categories[0].values.map(
+                (v, i) => {
+                    return <DateValue> {
+                        date: v,
+                        value: dataView.categorical.values.map((val) => { return val.values[i]; })
+                            .reduce((prev, curr) => { return prev + curr; })
+                    };
+            });
+
             return <CalendarViewModel> {
-                values: [<DateValue> { date: new Date(1990, 1, 1), value: 20 },
-                    <DateValue> { date: new Date(1990, 1, 2), value: 15 },
-                    <DateValue> { date: new Date(1990, 1, 3), value: 9 },
-                    <DateValue> { date: new Date(1990, 1, 4), value: 60 },
-                    <DateValue> { date: new Date(1990, 1, 5), value: 35 },
-                    <DateValue> { date: new Date(1973, 1, 6), value: 150 },
-                    <DateValue> { date: new Date(1990, 1, 7), value: 19 },
-                    <DateValue> { date: new Date(1990, 1, 9), value: 60 },
-                    <DateValue> { date: new Date(1990, 1, 10), value: 75 },
-                    <DateValue> { date: new Date(1990, 1, 11), value: 99 },
-                    <DateValue> { date: new Date(1990, 1, 12), value: 19 },
-                    <DateValue> { date: new Date(1973, 2, 19), value: 17 }]
+                values: returnSet
             };
         };
         public getYears(viewModel: CalendarViewModel) {
