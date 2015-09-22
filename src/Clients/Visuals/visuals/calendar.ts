@@ -49,8 +49,8 @@ module powerbi.visuals {
     };
 
     export class CalendarVisual implements IVisual {
-        private drawMonthPath = true;
-        private drawLegend = true;
+        private drawMonthPath = false;
+        private drawLegend = false;
         private drawLabels = true;
         private width = 1016;
         private height = 144;
