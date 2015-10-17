@@ -33,22 +33,77 @@
 
 declare module D3 {
     export module Time {
-        export interface Time {        
+        export interface Time {
             weekOfYear(x: any): any;//this is missin from d3.d.ts
         }
     }
 }
 
 module powerbi.visuals {
+    import SelectionManager = utility.SelectionManager;
     export interface DateValue {
         date: Date;
         value: number;
+        selector: SelectionId;
+        dateStr: string;
+        tooltipInfo?: TooltipDataItem[];
     };
     export interface CalendarViewModel {
-        values: DateValue[];
+        values: any[];
+        yearsList: any[];
     };
 
     export class CalendarVisual implements IVisual {
+        public static capabilities: VisualCapabilities = {
+            dataRoles: [
+                {
+                    name: 'Category',
+                    kind: VisualDataRoleKind.Grouping,
+                },
+                {
+                    name: 'Y',
+                    kind: VisualDataRoleKind.Measure,
+                },
+            ],
+            dataViewMappings: [{
+                categorical: {
+                    categories: {
+                        for: { in: 'Category' },
+                    },
+                    values: {
+                        for: { in: 'Y' }
+                    },
+                    rowCount: { preferred: { max: 2 } }
+                },
+            }],
+            dataPoint: {
+                displayName: data.createDisplayNameGetter('Visual_DataPoint'),
+                properties: {
+                    fill: {
+                        displayName: data.createDisplayNameGetter('Visual_Fill'),
+                        type: { fill: { solid: { color: true } } }
+                    },
+                }
+            },
+            labels: {
+                displayName: data.createDisplayNameGetter('Visual_DataPointsLabels'),
+                properties: {
+                    show: {
+                        displayName: data.createDisplayNameGetter('Visual_Show'),
+                        type: { bool: true }
+                    },
+                    color: {
+                        displayName: data.createDisplayNameGetter('Visual_LabelsFill'),
+                        type: { fill: { solid: { color: true } } }
+                    },
+                    labelDisplayUnits: {
+                        displayName: data.createDisplayNameGetter('Visual_DisplayUnits'),
+                        type: { formatting: { labelDisplayUnits: true } }
+                    }
+                }
+            }
+        };
+
         private drawMonthPath = false;
         private drawLegend = false;
         private drawLabels = true;
@@ -57,49 +112,65 @@ module powerbi.visuals {
         private cellSize = 18; // cell size
         private element: HTMLElement;
         private rect: D3.Selection;
+        private selectionManager: SelectionManager;
+        private static maxDomain: number;
+        private colors: IDataColorPalette;
 
-        constructor(cellSizeOpt?: number)
-        {
+        constructor(cellSizeOpt?: number) {
             if (cellSizeOpt) {
                 this.cellSize = cellSizeOpt;
             }
         }
 
         public init(options: VisualInitOptions) {
+            this.colors = options.style.colorPalette.dataColors;
             this.element = options.element.get(0);
+            this.selectionManager = new SelectionManager({ hostServices: options.host });
         }
 
         public update(options: VisualUpdateOptions) {
             d3.select(this.element).selectAll("*").remove();
             var viewModel = this.convert(options.dataViews[0]);
 
-            var maxDomain = Math.max.apply(Math,
+            if (viewModel == null) return;
+
+            CalendarVisual.maxDomain = Math.max.apply(Math,
                 viewModel.values.map((v) => {
-                    return v.value;
+                    return v ? v.value : null;
                 })
-            );
-            this.draw(this.element, options.viewport.width, options.viewport.height, this.getYears(viewModel), maxDomain);
-            this.apply(viewModel, maxDomain);
+                );
+            this.draw(this.element, options.viewport.width, options.viewport.height, viewModel, CalendarVisual.maxDomain, this.colors);
+            // this.apply(viewModel, CalendarVisual.maxDomain);
         }
 
-        public onDataChanged(options: VisualDataChangedOptions): void {
+        private renderTooltip(selection: D3.Selection): void {
+            TooltipManager.addTooltip(selection, (tooltipEvent: TooltipEvent) => {
+                return (<DateValue>tooltipEvent.data).tooltipInfo;
+            });
         }
 
-        public onResizing(viewport: IViewport): void {
-        };
-        
-        private draw(element, itemWidth: number, itemHeight: number, range: number[], maxDomain: number)
-        {
+        private static getTooltipData(displayName: string, value: number): TooltipDataItem[] {
+            return [{
+                displayName: displayName,
+                value: value < 0 ? "" : value.toString()
+            }];
+        }
+        private prevSelection: D3.Selection;
+        private draw(element, itemWidth: number, itemHeight: number, calendarViewModel: CalendarViewModel,
+            maxDomain: number, colors: IDataColorPalette) {
+            var colorScale = colors.getNewColorScale();
+            var yearslist = calendarViewModel.yearsList;
             var format = d3.time.format("%Y-%m-%d");
-            
+
             var svg = d3.select(element).selectAll("svg")
-                .data(range)
-                .enter().append("svg")
-                .attr("width", itemWidth)
+                .data(yearslist)
+                .enter().append("svg");
+
+            svg.attr("width", itemWidth)
                 .attr("height", itemWidth / 7)
-                .attr("viewBox", "0 0 " + this.width + " " + this.height)
+                .attr("viewBox", "-20 -20 " + (this.width - 20) + " " + (this.height + 4))
                 .append("g")
-                .attr("transform", "translate(" + ((this.width - this.cellSize * 52) / 2) + "," + (this.height - this.cellSize * 7 - 1) + ")");
+                .attr("transform", "translate(" + (20 + (this.width - this.cellSize * 52) / 2) + "," + (20 + this.height - this.cellSize * 7 - 1) + ")");
 
             if (this.drawLabels) {
                 var textGroup = svg.append("g").attr("fill", "#cccccc");
@@ -143,27 +214,48 @@ module powerbi.visuals {
             }
 
             this.rect = svg.selectAll(".day")
-                .data(this.getDaysOfYear)
+                .data((d, i) => {
+                    return calendarViewModel.values[d]
+                })
                 .enter().append("rect")
-                .attr("width", this.cellSize)
-                .attr("height", this.cellSize)
+                .attr("width", this.cellSize - 1)
+                .attr("height", this.cellSize - 1)
                 .attr("class", "day")
-                .attr("style", "fill: #eeeeee; stroke-width: 2px; stroke: #ffffff")
+            // .attr("style", "stroke-width: 2px; stroke: #ffffff")
+                .attr("style", (d) => { return "fill:" + (d.value == 0 ? "#ffffff" : colorScale.getColor(d.value).value) })
                 .attr("x", this.getXPosition)
                 .attr("y", this.getYPosition)
-                .datum(format);
+                .on("mousedown", (d) => {
+                    if (d.selector) {
+                        this.selectionManager.select(d.selector);
+                    }
 
-            this.rect.append("title")
-                .text(function (d) { return d; });
+                    if (this.prevSelection) {
+                        var oldStyle = this.prevSelection.attr("oldStyle");
+                        this.prevSelection.attr("style", oldStyle);
+                    }
 
-            if (this.drawMonthPath) {
-                svg.selectAll(".month")
-                    .data(function (d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
-                    .enter().append("path")
-                    .attr("class", "month")
-                    .attr("d", this.monthPath)
-                    .attr("stroke", "#cccccc");
-            }
+                    var rect = d3.select(d3.event.target);
+                    var oldFill = rect.attr("style");
+                    rect.attr("style", "stroke:#000000;stroke-width: 1px;" + oldFill);
+                    rect.attr("oldStyle", oldFill);
+                    this.prevSelection = rect;
+
+                });
+
+            // this.rect.append("title")
+            //     .text(function (d) { return d; });
+                
+            this.renderTooltip(this.rect);
+
+            // if (this.drawMonthPath) {
+            svg.selectAll(".month")
+                .data(function (d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
+                .enter().append("path")
+                .attr("class", "month")
+                .attr("d", this.monthPath)
+                .attr("stroke", "#bbbbbb");
+            // }
 
             if (this.drawLegend) {
                 var legendGroup = d3.select(this.element).insert("svg", ":first-child")
@@ -189,67 +281,95 @@ module powerbi.visuals {
                     .append("text").text(0)
                     .attr("x", this.cellSize * 2).attr("y", this.cellSize);
                 legendGroup
-                    .append("text").text(d3.format(".4r")(maxDomain))
+                    .append("text").text(d3.format(".4r")(CalendarVisual.maxDomain))
                     .attr("x", this.cellSize * 2).attr("y", this.cellSize * 2.5);
             }
+            svg.on('mousedown', (d) => {
+                this.selectionManager.clear();
+            });
         }
 
-        private apply(viewModel: CalendarViewModel, maxDomain: number)
-        {            
-            var pad = (n: any) => {
-                if (n.toString().length === 1) {
-                    return "0" + n;
-                }
-
-                return n.toString();
-            };
-
-            var quantizeColor =
-                d3.scale.quantize()
-                    .domain([0, maxDomain])
-                    .range(d3.range(256).map(function (d) { return "#00" + pad(d.toString(16)) + "00"; }));
-
-            
-            var data = d3.nest()
-                .key(function (d: DateValue) { return d.date.getFullYear() + "-" + pad(d.date.getMonth()) + "-" + pad(d.date.getDate()); })
-                .rollup(function (d: DateValue[]) { return d.map((dateValue) => { return dateValue.value; }).reduce((prev, curr) => prev + curr);  })
-                .map(viewModel.values);
-
-            this.rect.filter(function (d) { return d in data; })
-                .attr("style", function (d) { return "fill:" + quantizeColor(data[d]); })
-                .select("title")
-                .text(function (d) { return d + ": " + d3.format(".6f")(data[d]); });
-        }
+        public static pad = (n: any) => {
+            if (n.toString().length === 1) {
+                return "0" + n;
+            }
+            return n.toString();
+        };
 
         private convert(dataView: DataView): CalendarViewModel {
+            if (dataView == undefined || dataView.categorical == undefined || dataView.categorical.categories == null) {
+                window.console.log("no categoricals"); return;
+            } else
+                if (dataView.categorical.categories[0].values == undefined || dataView.categorical.categories[0].values == null) {
+                    window.console.log("no categoricals"); return;
+                }
             var returnSet = dataView.categorical.categories[0].values.map(
                 (v, i) => {
-                    return <DateValue> {
-                        date: v,
-                        value: dataView.categorical.values.map((val) => { return val.values[i]; })
-                            .reduce((prev, curr) => { return prev + curr; })
-                    };
-            });
+                    if (dataView.categorical.values) {
+                        var retVal = <DateValue> {
+                            date: v,
+                            value: dataView.categorical.values.map((val) => { return val.values[i]; })
+                                .reduce((prev, curr) => { return prev + curr; }),
+                            //selector:  SelectionId.createWithId(dataView.categorical.categories[0].identity[i]),
+                            selector: visuals.SelectionIdBuilder.builder()
+                                .withCategory(dataView.categorical.categories[0], i)
+                                .withMeasure(dataView.categorical.values[0].source.queryName)
+                                .createSelectionId(),
+                            dateStr: v.getFullYear() + "-" + CalendarVisual.pad(v.getMonth()) +
+                            "-" + CalendarVisual.pad(v.getDate())
+                        }
+                        retVal.tooltipInfo = CalendarVisual.getTooltipData(retVal.dateStr, retVal.value);
+                        return retVal;
+                    }
+                    else return null;
+                });
 
-            return <CalendarViewModel> {
-                values: returnSet
+            var yearsList = this.getYears(returnSet);
+            var daysList = new Array();
+            for (var i = 0; i < yearsList.length; i++) {
+
+                var daysofY = this.getDaysOfYear(yearsList[i]).map((d) => {
+                    var activeDays = returnSet.filter((val) => {
+                        return val.date.getTime() == d.getTime();
+                    });
+                    if (activeDays.length > 0) {
+                        return activeDays[0];
+                    }
+                    return <DateValue>{
+                        date: d,
+                        dateStr: "",
+                        value: 0
+                    }
+                });
+
+                daysList[yearsList[i]] = daysofY;
             };
-        };
-        public getYears(viewModel: CalendarViewModel) {
-            var allYears = viewModel.values.map((value) => { return value.date.getFullYear(); });
+            return <CalendarViewModel> {
+                values: daysList,
+                yearsList: yearsList
+            };
+        }
+        public getYears(values: DateValue[]) {
+            var allYears = values.map((value) => {
+                if (value == null || value.date == null || value.date == undefined || isNaN(Date.parse(value.date.toString()))) {
+                    return 1900;
+                };
+                return value.date.getFullYear ? value.date.getFullYear() : null;
+            });
             var uniqueYears = {}, a = [];
             for (var i = 0, l = allYears.length; i < l; ++i) {
-                if (uniqueYears.hasOwnProperty(allYears[i].toString())) {
+                if (allYears[i] == null || uniqueYears.hasOwnProperty(allYears[i].toString())) {
                     continue;
                 }
                 a.push(allYears[i]);
                 uniqueYears[allYears[i].toString()] = 1;
             }
             return a.sort();
-        };
+        }
+
         private getDaysOfYear = (year: number) => { return d3.time.days(new Date(year, 0, 1), new Date(year + 1, 0, 1)); };
-        public getXPosition = (date: Date) => { return d3.time.weekOfYear(date) * this.cellSize; };
-        public getYPosition = (date: Date) => { return date.getDay() * this.cellSize; };
+        public getXPosition = (date: DateValue) => { return (d3.time.weekOfYear(date.date) * this.cellSize); };
+        public getYPosition = (date: DateValue) => { return (date.date.getDay() * this.cellSize); };
         private monthPath = (t0) => {
             var t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0), d0 = t0.getDay(), w0 = d3.time.weekOfYear(t0), d1 = t1.getDay(), w1 = d3.time.weekOfYear(t1);
             return "M" + (w0 + 1) * this.cellSize + "," + d0 * this.cellSize + "H" + w0 * this.cellSize + "V" + 7 * this.cellSize + "H" + w1 * this.cellSize + "V" + (d1 + 1) * this.cellSize + "H" + (w1 + 1) * this.cellSize + "V" + 0 + "H" + (w0 + 1) * this.cellSize + "Z";
