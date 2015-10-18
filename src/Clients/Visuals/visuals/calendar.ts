@@ -31,6 +31,7 @@
 
 /// <reference path="../_references.ts"/>
 
+
 declare module D3 {
     export module Time {
         export interface Time {
@@ -49,7 +50,7 @@ module powerbi.visuals {
         tooltipInfo?: TooltipDataItem[];
     };
     export interface CalendarViewModel {
-        values: any[];
+        values: DateValue[][];
         yearsList: any[];
     };
 
@@ -113,7 +114,7 @@ module powerbi.visuals {
         private element: HTMLElement;
         private rect: D3.Selection;
         private selectionManager: SelectionManager;
-        private static maxDomain: number;
+        private maxDomain: number;
         private colors: IDataColorPalette;
 
         constructor(cellSizeOpt?: number) {
@@ -134,12 +135,14 @@ module powerbi.visuals {
 
             if (viewModel == null) return;
 
-            CalendarVisual.maxDomain = Math.max.apply(Math,
-                viewModel.values.map((v) => {
-                    return v ? v.value : null;
-                })
-                );
-            this.draw(this.element, options.viewport.width, options.viewport.height, viewModel, CalendarVisual.maxDomain, this.colors);
+            this.maxDomain = viewModel.yearsList.map((year: number) => {
+                return viewModel.values[year]
+                    .map(dv => { return dv.value ? dv.value : 0; })
+                    .reduce((p, c) => { if (c > p) { console.log(c, p); return c; } else { return p; } }, 0);
+            }).reduce((p, c) => { if (c > p) { console.log(c, p); return c; } else { return p; } }, 0);
+
+            console.log(this.maxDomain);
+            this.draw(this.element, options.viewport.width, options.viewport.height, viewModel, this.colors);
             // this.apply(viewModel, CalendarVisual.maxDomain);
         }
 
@@ -156,8 +159,7 @@ module powerbi.visuals {
             }];
         }
         private prevSelection: D3.Selection;
-        private draw(element, itemWidth: number, itemHeight: number, calendarViewModel: CalendarViewModel,
-            maxDomain: number, colors: IDataColorPalette) {
+        private draw(element, itemWidth: number, itemHeight: number, calendarViewModel: CalendarViewModel, colors: IDataColorPalette) {
             var colorScale = colors.getNewColorScale();
             var yearslist = calendarViewModel.yearsList;
             var format = d3.time.format("%Y-%m-%d");
@@ -212,7 +214,19 @@ module powerbi.visuals {
                     .attr("transform", (d) => { return "translate(" + d3.time.weekOfYear(d) * this.cellSize + ", -5)"; })
                     .text((d) => { return d3.time.format("%b")(d); });
             }
+            var pad = (n: any) => {
+                if (n.toString().length === 1) {
+                    return "0" + n;
+                }
 
+                return n.toString();
+            };
+            var quantizeColor =
+                d3.scale.quantize()
+                    .domain([0, this.maxDomain])
+                    .range(d3.range(256).map(function (d) { return "#00" + pad(d.toString(16)) + "00"; }));
+
+            (<any>window).quantizeColor = quantizeColor;
             this.rect = svg.selectAll(".day")
                 .data((d, i) => {
                     return calendarViewModel.values[d]
@@ -222,7 +236,7 @@ module powerbi.visuals {
                 .attr("height", this.cellSize - 1)
                 .attr("class", "day")
             // .attr("style", "stroke-width: 2px; stroke: #ffffff")
-                .attr("style", (d) => { return "fill:" + (d.value == 0 ? "#ffffff" : colorScale.getColor(d.value).value) })
+                .attr("style", (d) => { return "fill:" + (d.value == 0 ? "#ffffff" : quantizeColor(d.value)) })
                 .attr("x", this.getXPosition)
                 .attr("y", this.getYPosition)
                 .on("mousedown", (d) => {
@@ -281,7 +295,7 @@ module powerbi.visuals {
                     .append("text").text(0)
                     .attr("x", this.cellSize * 2).attr("y", this.cellSize);
                 legendGroup
-                    .append("text").text(d3.format(".4r")(CalendarVisual.maxDomain))
+                    .append("text").text(d3.format(".4r")(this.maxDomain))
                     .attr("x", this.cellSize * 2).attr("y", this.cellSize * 2.5);
             }
             svg.on('mousedown', (d) => {
