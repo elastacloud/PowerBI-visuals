@@ -329,7 +329,7 @@ module powerbi.visuals {
                                 .withCategory(dataView.categorical.categories[0], i)
                                 .withMeasure(dataView.categorical.values[0].source.queryName)
                                 .createSelectionId(),
-                            dateStr: v.getFullYear() + "-" + CalendarVisual.pad(v.getMonth()) +
+                            dateStr: v.getFullYear() + "-" + CalendarVisual.pad(v.getMonth()+1) +
                             "-" + CalendarVisual.pad(v.getDate())
                         }
                         retVal.tooltipInfo = CalendarVisual.getTooltipData(retVal.dateStr, retVal.value);
